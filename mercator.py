@@ -11,6 +11,8 @@ EQUATOR_CIRCUMFERENCE = 2 * pi * EARTH_RADIUS
 ORIGIN_SHIFT = EQUATOR_CIRCUMFERENCE / 2.0
 google_res = 512
 
+# comment down here
+
 def great_circle_distance(latlong_a, latlong_b):
 
     lat1, lon1 = latlong_a
