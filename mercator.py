@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 # <nbformat>3.0</nbformat>
-
+# just adding a stupid thing here
 # <codecell>
 
 import numpy as np
@@ -10,6 +10,8 @@ EARTH_RADIUS = 6378137
 EQUATOR_CIRCUMFERENCE = 2 * pi * EARTH_RADIUS
 ORIGIN_SHIFT = EQUATOR_CIRCUMFERENCE / 2.0
 google_res = 512
+
+# comment down here
 
 def great_circle_distance(latlong_a, latlong_b):
 
