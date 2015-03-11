@@ -2,6 +2,7 @@
 # <nbformat>3.0</nbformat>
 # just adding a stupid thing here
 # <codecell>
+# second thing test
 
 import numpy as np
 from math import log, exp, tan, atan, pi, ceil, radians, sin, cos, atan2, sqrt
