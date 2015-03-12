@@ -499,8 +499,7 @@ def update_score(yelp_map,old_score):
        
         unscored_searches = [search for search in mapsearches if not search in scored_searches]
         
-        #print 'unscored searches: '
-        #print unscored_searches
+     
         if unscored_searches:
             # add missing entries
             orig = key.split(':')
