@@ -599,6 +599,9 @@ def score_save(score_DF,save_dir,save_name='scored-yelp'):
     # dict should be dictionary of panels
     score_DF.to_pickle(save_dir+save_name+'.pkl')    
 
+def score_read(save_dir,save_name='scored-yelp'):
+    return pd.read_pickle(save_dir+save_name)
+
 def interpolate_yelp_score(scores,plot=False,method='nearest'):
     pixels = scores.keys()
     searches = scores.index
@@ -608,24 +611,27 @@ def interpolate_yelp_score(scores,plot=False,method='nearest'):
         pix = pixel.split(':')
         px.append(float(pix[0]))
         py.append(float(pix[1]))
-    
-    x,y = np.mgrid[np.min(px):np.max(px):xsteps,np.min(py):np.max(py):ysteps]
+    #xsteps = 25
+    #ysteps = 25
+    xsteps_fine = 1
+    ysteps_fine = 1
+    #x,y = np.mgrid[np.min(px):np.max(px):xsteps,np.min(py):np.max(py):ysteps]
     x_fine,y_fine = np.mgrid[np.min(px):np.max(px):xsteps_fine,np.min(py):np.max(py):ysteps_fine]
     interp = {}
-    x_pos = {}
-    y_pos = {}
-    mask = {}
+    #x_pos = {}
+    #y_pos = {}
+    #mask = {}
     for search in searches: 
         points = [[]]
         mask_points = [[]]
         values = []
         mask_values = []
         mask_flag=True
-        for i,p in enumerate(px):
+        for i,x in enumerate(px):
             if mask_flag:
-                mask_points = [[p,py[i]]]
+                mask_points = [[x,py[i]]]
             else:
-                mask_points.append([p,py[i]])
+                mask_points.append([x,py[i]])
             if not np.isnan(scores[pixels[i]][search]):
                 if mask_flag:
                     mask_values=[128]
@@ -634,10 +640,10 @@ def interpolate_yelp_score(scores,plot=False,method='nearest'):
                     mask_values.append(128)
                     
                 if len(points[0]) == 0:
-                    points = [[p,py[i]]]
+                    points = [[x,py[i]]]
                     values = [scores[pixels[i]][search]]
                 else:
-                    points.append([p,py[i]])
+                    points.append([x,py[i]])
                     values.append(scores[pixels[i]][search])
             else:
                 if mask_flag:
@@ -649,8 +655,8 @@ def interpolate_yelp_score(scores,plot=False,method='nearest'):
         grid = griddata(np.matrix(points), np.array(values), (x_fine, y_fine), method)
         grid_mask = griddata(np.matrix(mask_points), np.array(mask_values), (x_fine, y_fine), method)
         interp[search] = grid.T
-        x_pos[search]= x_fine
-        y_pos[search] = y_fine
+        #x_pos[search]= x_fine
+        #y_pos[search] = y_fine
         if plot:
             plt.figure()
             plt.imshow(grid)
@@ -659,5 +665,5 @@ def interpolate_yelp_score(scores,plot=False,method='nearest'):
             plt.imshow(grid_mask)
             plt.title(search+' mask')
             
-    return x_pos,y_pos,interp
+    return x_fine,y_fine,interp
        
