@@ -394,17 +394,7 @@ def map_stats(yelp_map,verbose=True):
         print 'py range: ' +str(minpy)+' - '+str(maxpy)
     return out
             
-'''
-def map_searches(yelp_map):
-    keys = yelp_map.keys()
-    searches = {}
-    for key in keys:
-        items = yelp_map[key].items
-        for item in items:
-            if not item in searches:
-                searches[item] = True
-    return searches    
-   ''' 
+
 def get_travel_time(orig_lat,orig_lng,dest_lat,dest_lng,mode='walking'):
     global distance_matrix_key
     url = "https://maps.googleapis.com/maps/api/distancematrix/json?origins="+str(orig_lat)+","+str(orig_lng)+"&destinations="+str(dest_lat)+","+str(dest_lng)+"&mode="+mode+"&language=en-EN&sensor=false&key="+google_api_key[distance_matrix_key]
