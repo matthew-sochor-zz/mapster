@@ -269,7 +269,7 @@ def map_yelp(my_map_area,searches,old_map_area=None):
                 #yelp = yelp_searches(px,py,search)
     return yelp_df
 
-def merge_yelp(my_map_area,my_map_yelp,mode='mean'):
+def score_map_yelp(my_map_area,my_map_yelp,mode='mean'):
     for i in my_map_yelp.index:
         if mode == 'mean':
             val = my_map_yelp.xs(i[:-1]).xs(i[-1])['score'].mean()
@@ -284,6 +284,14 @@ def merge_yelp(my_map_area,my_map_yelp,mode='mean'):
         my_map_area.loc[i[:-1],i[-1]] = val
         my_map_area.loc[i[:-1],i[-1]+'-source'] = 'yelp-'+mode
 
+def merge_map_yelp(map_yelp_1,map_yelp_2):
+    # map yelps should have the same indices.  This really only occurs when doing further searches.
+    df1 = map_yelp_1.reset_index()
+    df2 = map_yelp_2.reset_index()
+    df3 = pd.concat([df1,df2])
+    df4 = df3.sort(['px','py','search'])
+    return df4.set_index(['px','py','search'])
+    
 
 def get_travel_time(orig_lat,orig_lng,dest_lat,dest_lng,mode='walking'):
     global distance_matrix_key
@@ -319,13 +327,6 @@ def get_travel_time(orig_lat,orig_lng,dest_lat,dest_lng,mode='walking'):
     return seconds
 
 
-    
-def score_save(score_DF,save_dir,save_name='scored-yelp'):
-    # dict should be dictionary of panels
-    score_DF.to_pickle(save_dir+save_name+'.pkl')    
-
-def score_read(save_dir,save_name='scored-yelp'):
-    return pd.read_pickle(save_dir+save_name)
 
 def interpolate_yelp_score(scores,plot=False,method='nearest'):
     pixels = scores.keys()
