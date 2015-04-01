@@ -24,7 +24,7 @@ google_api_key.append('AIzaSyCjD_r09oM9iKt1N0qAP-nohPO4yGNqsUc')
 geocode_key = 0
 distance_matrix_key = 0
 
-default_map_width = 640
+default_map_width = 256#640
 sampling = 25
 map_zoom = 14
 default_mode = 'walking'
@@ -37,173 +37,8 @@ google_res = 512
 
 # comment down here
     
-def run_parallel_in_threads(target, args_list):
-    result = Queue.Queue()
-    # wrapper to collect return value in a Queue
-    def task_wrapper(*args):
-        result.put(target(*args))
-    threads = [threading.Thread(target=task_wrapper, args=args) for args in args_list]
-    for t in threads:
-        t.start()
-    for t in threads:
-        t.join()
-    return result
 
-def travel_time_wrapper2(bus,key):
-    '''
-    try:
-        bus.empty
-    except NameError:
-        print 'Nothing passed'
-        return
-        
-    if not key:
-        key = 0
-        '''
-    if not bus['error']:
-        if not bus['oauth2-ascii-error']:
-            seconds = get_travel_time(bus['lat'],bus['lng'],bus['business lat'],bus['business lng'],key=key)  
-            if seconds:
-                score = seconds/(bus['rating']**2) 
-            else:
-                return None
-        else:
-            seconds = np.NaN
-            score = np.NaN
-    else:
-        seconds = np.NaN
-        score = np.NaN
-        
-    return (bus['ind'],seconds,score)
-    
-def travel_time_wrapper(ind,lat,lng,blat,blng,rating,err,oauerr):
-        
-    if not err:
-        if not oauerr:
-            seconds = get_travel_time(lat,lng,blat,blng)  
-            score = seconds/(rating**2) 
-        else:
-            seconds = np.NaN
-            score = np.NaN
-    else:
-        seconds = np.NaN
-        score = np.NaN
-        
-    return (ind,seconds,score)    
-def map_yelp_travel_time(map_yelp_DF,group=None):
-    if not group:
-        group = 100
-        
-    df = map_yelp_DF.reset_index()
-    dfout = df.copy()
-    df['ind'] = df.index
-    searching =True
-    key = 0  
-    results = []
-    busses = [df.loc[i] for i in df.index]
-    ind =0
-    while searching:
-        if test_key(key):
-            # split into groups of size group
-            if ind+group >= len(busses):
-                mini_bus = busses[ind:]
-                bus_group = [(bus, key) for bus in mini_bus]
-                searching = False
-            else:
-                mini_bus = busses[ind:ind+group]
-                bus_group = [(bus, key) for bus in mini_bus]
-            # run parallel on that group
-            q = run_parallel_in_threads(travel_time_wrapper2, bus_group) 
-            flag = True
-            keyerr = False
-            result = []
-            while flag:
-                out = q.get()
-                #print out
-                if out:
-                    #print 'appending out'
-                    result.append(out)
-                else:
-                    # out is None, which means the key is exhausted
-                    #print 'Out is None'
-                    flag = False
-                    keyerr = True
-                if q.empty():
-                    #print 'finished normally'
-                    # finish normally
-                    flag = False
-            if not keyerr:       
-                #print 'add result to results'
-                # only take the results if the entire group finished correctly
-                #print result
-                ind += group
-                results += result
-                #print results
-            else:
-                #print 'do not add result to results'
-                key += 1
-                if key == 5:
-                    print 'No keys left'
-                    searching = False
-                # keep the index where it is at, we want to re-run that group
-        else:
-            # key is exhausted
-            key += 1
-            if key == 5:
-                #print 'No keys left'
-                searching = False
-    # note there is probably a much more elegant way of doing this  
-    
-    resultsDF = pd.DataFrame(results)
-    # need to sort because the parallel threading screws up the order
-    resultsDF = resultsDF.sort(resultsDF.keys()[0])
-    resultsDF = resultsDF.set_index(resultsDF.keys()[0])
-    # dfout doesn't have the 'ind' field,  I think there is a more elegant way to drop a single column
-    dfout['seconds'] = resultsDF[resultsDF.keys()[0]]
-    dfout['score'] = resultsDF[resultsDF.keys()[1]]
-    return dfout.set_index(['px','py','search'])   
 
-def test_key(key):
-    return get_travel_time(42.381119, -71.115189, 42.383610, -71.133680,key=key)
-
-    
-def map_yelp_travel_time_inner(map_yelp_DF,key=None):
-    if not key:
-        key =0
-        
-    df = map_yelp_DF.reset_index()
-    dfout = df.copy()
-    df['ind'] = df.index
-    busses = [(df.loc[i], key) for i in df.index]
-
-    q = run_parallel_in_threads(travel_time_wrapper2, busses) 
-    # note there is probably a much more elegant way of doing this    
-    x = []
-    while not q.empty():
-        x.append(q.get())
-    
-    xDF = pd.DataFrame(x)
-    xDF = xDF.sort(xDF.keys()[0])
-    xx = xDF.set_index(xDF.keys()[0])
-    dfout['seconds'] = xx[xx.keys()[0]]
-    dfout['score'] = xx[xx.keys()[1]]
-    return dfout.set_index('px','py','search')
-    
-def score_yelp(map_yelp_DF):
-    df = map_yelp_DF.reset_index()
-    df['ind'] = df.index
-    busses = [(df.loc[i]['ind'],df.loc[i]['lat'],df.loc[i]['lng'],df.loc[i]['business lat'],df.loc[i]['business lng'],df.loc[i]['rating'],df.loc[i]['error'],df.loc[i]['oauth2-ascii-error']) for i in df.index]
-    q = run_parallel_in_threads(travel_time_wrapper, busses) 
-    # note there is probably a much more elegant way of doing this    
-    x = []
-    while not q.empty():
-        x.append(q.get())
-    
-    xDF = pd.DataFrame(x)
-    xx = xDF.set_index(xDF.keys()[0])
-    df['seconds'] = xx[xx.keys()[0]]
-    df['score'] = xx[xx.keys()[1]]
-    return df.set_index('px','py','search')
     
 def great_circle_distance(latlng_a, latlng_b):
 
@@ -220,21 +55,34 @@ def great_circle_distance(latlng_a, latlng_b):
     return d 
 
 def latlngtopixels(lat, lng, zoom):
+    '''    
     mx = (lng * ORIGIN_SHIFT) / 180.0
     my = log(tan((90.0 + lat) * pi/360.0))/(pi/180.0)
     my = (my * ORIGIN_SHIFT) /180.0
     res = EQUATOR_CIRCUMFERENCE/google_res*2/(2.0**zoom)
     px = (mx + ORIGIN_SHIFT)/res
-    py = (my + ORIGIN_SHIFT)/res
-    return px, py
+    py = (my + ORIGIN_SHIFT)/res'''
+    px = (2.0**zoom)*(lng/720. + 0.25)*google_res
+    py = (2.0**zoom)*(-1*log(tan((90.+lat)*pi/360.))/4./pi + .25)*google_res
+    return int(px), int(py)
+    
+def latlngtotile(lat, lng, zoom):
+    px = (2.0**zoom)*(lng/720. + 0.25)*google_res
+    py = (2.0**zoom)*(-1*log(tan((90.+lat)*pi/360.))/4./pi + .25)*google_res
+    return int(np.floor(px/256.)), int(np.floor(py/256.))
+
+def pixelstotile(px,py):
+    return int(np.floor(px/256.)), int(np.floor(py/256.))
 
 def pixelstolatlng(px, py, zoom):
-    res = EQUATOR_CIRCUMFERENCE/google_res*2/(2**zoom)
-    mx = px * res - ORIGIN_SHIFT
-    my = py * res - ORIGIN_SHIFT
-    lat = (my / ORIGIN_SHIFT) * 180.0
-    lat = 180.0 / pi * (2.0*atan(exp(lat*pi/180.0)) - pi/2.0)
-    lng = (mx / ORIGIN_SHIFT) * 180.0
+    #res = EQUATOR_CIRCUMFERENCE/google_res*2/(2**zoom)
+    #mx = px * res - ORIGIN_SHIFT
+    #my = py * res - ORIGIN_SHIFT
+    #lat = (my / ORIGIN_SHIFT) * 180.0
+    #lat = 180.0 / pi * (2.0*atan(exp(lat*pi/180.0)) - pi/2.0)
+    #lng = (mx / ORIGIN_SHIFT) * 180.0
+    lng = 720.0*(float(px)/(2.0**zoom)/google_res - 0.25)
+    lat = (360.0/pi)*atan(exp(pi-4.0*pi*float(py)/(2.0**zoom)/google_res))-90.0
     return lat, lng
 
 def pixelstolat(py, zoom):
@@ -296,13 +144,13 @@ def scrape_yelp(term, location, lat, lng, businessDF = None, firstRun=False):
     except:
         print 'Yelp search failed for this location: '+location
         err = {'lat':lat,'lng':lng,'search':term,'id':None, 'business name':None, 'business lat':None, 'business lng':None, 'rating':None,'oauth2-ascii-error':False, 'error':True,'error-message':'Yelp search failed'}        
-        return pd.DataFrame([err,err,err])
+        return pd.DataFrame([err,err,err]),businessDF
         
     businesses = response.get('businesses')
     if not businesses:
         print 'No businesses found for this location'
         err = {'lat':lat,'lng':lng,'search':term,'id':None, 'business name':None, 'business lat':None, 'business lng':None, 'rating':None,'oauth2-ascii-error':False, 'error':True,'error-message':'No businesses found for this location'}        
-        return pd.DataFrame([err,err,err])
+        return pd.DataFrame([err,err,err]),businessDF
 
     if firstRun:
         # initialize businessDF
@@ -322,16 +170,6 @@ def scrape_yelp(term, location, lat, lng, businessDF = None, firstRun=False):
             bus = yelp_business(businesses[i]['id'])
             businessDF[businesses[i]['id']] = bus
             business.append(bus)
-        #if not bus['error']:
-            #if not bus['oauth2-ascii-error']:
-                #bus['seconds'] = get_travel_time(lat,lng,bus['business lat'],bus['business lng'])  
-                #bus['score'] = bus['seconds']/(bus['rating']**2) 
-            #else:
-                #bus['seconds'] = np.NaN
-                #bus['score'] = np.NaN
-        #else:
-            #bus['seconds'] = np.NaN
-            #bus['score'] = np.NaN
             
     df = pd.DataFrame(business)
     
@@ -437,17 +275,22 @@ def map_area(minlatlng,maxlatlng,old_map=None):
                     map_py.append(py)
                     map_lat.append(lat)
                     map_lng.append(lng)
-            
+    tx,ty = pixelstotile(map_px,map_py)        
     df = pd.DataFrame({'address':map_address,
                          'px': map_px,
                          'py': map_py,
+                         'tx': tx,
+                         'ty': ty,
+                         'zoom': map_zoom,
                          'lat': map_lat,
                          'lng': map_lng})
-    df_indexed = df.set_index(['px','py'])
+    #df_indexed = df.set_index(['px','py'])
     if old_map:
-        return pd.concat([old_map,df_indexed])
+        #return pd.concat([old_map,df_indexed])
+        return pd.concat([old_map,df])
     else:
-        return df_indexed
+        #return df_indexed
+        return df
                          
 def map_yelp(my_map_area,searches,old_map_area=None):
     try:
@@ -461,27 +304,134 @@ def map_yelp(my_map_area,searches,old_map_area=None):
         first = False
     else:
         first = True
-        
-    for i in my_map_area.index:
+    #for i in my_map_area.index:    
+    for px,py,lat,lng,address in zip(my_map_area['px'],my_map_area['py'],my_map_area['lat'],my_map_area['lng'],my_map_area['address']):
         for search in searches:
         # i is a tuple with (px,py)
             #if old_map_area
             if firstRun:
-                scrape, businessDF = scrape_yelp(search,my_map_area.xs(i)['address'],my_map_area.xs(i)['lat'],my_map_area.xs(i)['lng'],firstRun=True)             
+                #scrape, businessDF = scrape_yelp(search,my_map_area.xs(i)['address'],my_map_area.xs(i)['lat'],my_map_area.xs(i)['lng'],firstRun=True)             
+                scrape, businessDF = scrape_yelp(search,address,lat,lng,firstRun=True)             
+                                
                 firstRun = False
             else:
-                scrape, businessDF = scrape_yelp(search,my_map_area.xs(i)['address'],my_map_area.xs(i)['lat'],my_map_area.xs(i)['lng'],businessDF = businessDF)
-            scrape['px'] = i[0]
-            scrape['py'] = i[1]
+                #scrape, businessDF = scrape_yelp(search,my_map_area.xs(i)['address'],my_map_area.xs(i)['lat'],my_map_area.xs(i)['lng'],businessDF = businessDF)
+                scrape, businessDF = scrape_yelp(search,address,lat,lng,businessDF = businessDF)
+                        
+            scrape['px'] = px
+            scrape['py'] = py
             if first:
-                yelp_df = scrape.set_index(['px','py','search'])
+                #yelp_df = scrape.set_index(['px','py','search'])
                 first = False
             else:
-                yelp_df = pd.concat([yelp_df, scrape.set_index(['px','py','search'])])
+                #yelp_df = pd.concat([yelp_df, scrape.set_index(['px','py','search'])])
+                yelp_df = pd.concat([yelp_df, scrape])
                 #yelp = yelp_searches(px,py,search)
     businessDF.to_pickle('./pickles/businessDF.pkl')
-    return yelp_df
+    
+    return map_yelp_travel_time(yelp_df)
 
+def run_parallel_in_threads(target, args_list):
+    result = Queue.Queue()
+    # wrapper to collect return value in a Queue
+    def task_wrapper(*args):
+        result.put(target(*args))
+    threads = [threading.Thread(target=task_wrapper, args=args) for args in args_list]
+    for t in threads:
+        t.start()
+    for t in threads:
+        t.join()
+    return result
+
+def travel_time_wrapper(bus,key):
+
+    if not bus['error']:
+        if not bus['oauth2-ascii-error']:
+            seconds = get_travel_time(bus['lat'],bus['lng'],bus['business lat'],bus['business lng'],key=key)  
+            if seconds:
+                score = seconds/(bus['rating']**2) 
+            else:
+                return None
+        else:
+            seconds = np.NaN
+            score = np.NaN
+    else:
+        seconds = np.NaN
+        score = np.NaN
+        
+    return (bus['ind'],seconds,score)
+     
+    
+def map_yelp_travel_time(map_yelp_DF,group=None):
+    if not group:
+        group = 100
+        
+    #df = map_yelp_DF.reset_index()
+    df = map_yelp_DF.copy()
+    #dfout = df.copy()
+    df['ind'] = df.index
+    searching =True
+    key = 0  
+    results = []
+    busses = [df.loc[i] for i in df.index]
+    ind =0
+    while searching:
+        if test_key(key):
+            # split into groups of size group
+            if ind+group >= len(busses):
+                mini_bus = busses[ind:]
+                bus_group = [(bus, key) for bus in mini_bus]
+                searching = False
+            else:
+                mini_bus = busses[ind:ind+group]
+                bus_group = [(bus, key) for bus in mini_bus]
+            # run parallel on that group
+            q = run_parallel_in_threads(travel_time_wrapper, bus_group) 
+            flag = True
+            keyerr = False
+            result = []
+            while flag:
+                out = q.get()
+                if out:
+                    result.append(out)
+                else:
+                    flag = False
+                    keyerr = True
+                if q.empty():
+                    flag = False
+            if not keyerr:       
+                # only take the results if the entire group finished correctly
+                ind += group
+                results += result
+            else:
+                key += 1
+                if key == 5:
+                    print 'No keys left'
+                    searching = False
+                # keep the index where it is at, we want to re-run that group
+        else:
+            # key is exhausted
+            key += 1
+            if key == 5:
+                print 'No keys left'
+                searching = False
+    # note there is probably a much more elegant way of doing this  
+    
+    resultsDF = pd.DataFrame(results)
+    # need to sort because the parallel threading screws up the order
+    resultsDF = resultsDF.sort(resultsDF.keys()[0])
+    #resultsDF = resultsDF.set_index(resultsDF.keys()[0])
+    # dfout doesn't have the 'ind' field,  I think there is a more elegant way to drop a single column
+    #dfout['seconds'] = resultsDF[resultsDF.keys()[0]]
+    #dfout['score'] = resultsDF[resultsDF.keys()[1]]
+    df['seconds'] = resultsDF[resultsDF.keys()[0]]
+    df['score'] = resultsDF[resultsDF.keys()[1]]
+    #return dfout.set_index(['px','py','search'])   
+    return df.drop('ind')
+
+def test_key(key):
+    return get_travel_time(42.381119, -71.115189, 42.383610, -71.133680,key=key)
+'''
 def score_map_yelp(my_map_area,my_map_yelp,mode='mean'):
     for i in my_map_yelp.index:
         if mode == 'mean':
@@ -496,15 +446,34 @@ def score_map_yelp(my_map_area,my_map_yelp,mode='mean'):
             raise NameError
         my_map_area.loc[i[:-1],i[-1]] = val
         my_map_area.loc[i[:-1],i[-1]+'-source'] = 'yelp-'+mode
+'''
+def score_map_yelp(my_map_area,my_map_yelp,mode='mean'):
+    
+    if mode == 'mean':
+        val = my_map_yelp.groupby(['px','py','search'])['score'].mean()
+    elif mode == 'min':
+        val = my_map_yelp.groupby(['px','py','search'])['score'].min()
+    elif mode == 'max':
+        val = my_map_yelp.groupby(['px','py','search'])['score'].max()
+    elif mode == 'std':
+        val = my_map_yelp.groupby(['px','py','search'])['score'].std()
+    else:
+        raise NameError
+    #my_map_area.sort(['px','py'])
+    #val.sort(['px','py'])
+    searches = list(set(val['search']))
+    for search in searches:
+        my_map_area[search] = val[val['search']==search]
 
 def merge_map_yelp(map_yelp_1,map_yelp_2):
     # map yelps should have the same indices.  This really only occurs when doing further searches.
-    df1 = map_yelp_1.reset_index()
-    df2 = map_yelp_2.reset_index()
-    df3 = pd.concat([df1,df2])
-    df4 = df3.sort(['px','py','search'])
-    return df4.set_index(['px','py','search'])
-    
+    #df1 = map_yelp_1.reset_index()
+    #df2 = map_yelp_2.reset_index()
+    #df3 = pd.concat([df1,df2])
+    #df4 = df3.sort(['px','py','search'])
+    #return df4.set_index(['px','py','search'])
+    df = pd.concat([map_yelp_1,map_yelp_2])
+    return df.sort(['px','py','search'])
 
 def get_travel_time(orig_lat,orig_lng,dest_lat,dest_lng,mode='walking',key=None):
     if not key:
@@ -536,23 +505,6 @@ def get_travel_time(orig_lat,orig_lng,dest_lat,dest_lng,mode='walking',key=None)
         seconds = np.NaN
         
     return seconds
-'''        
-        distance_matrix_key += 1
-        
-        if key == len(google_api_key):
-            print 'Out of distance matrix keys for the day, try again tomorrow!'
-            distance_matrix_key = 0
-            return np.NaN
-        else:
-            url = "https://maps.googleapis.com/maps/api/distancematrix/json?origins="+str(orig_lat)+","+str(orig_lng)+"&destinations="+str(dest_lat)+","+str(dest_lng)+"&mode="+mode+"&language=en-EN&sensor=false&key="+google_api_key[distance_matrix_key]
-            result= simplejson.load(urllib.urlopen(url))
-            if result.get('status') == 'OVER_QUERY_LIMIT':
-                print 'Next key is also exhausted.  Ruh Roh!'
-                return np.NaN
-                '''
-    
-
-
 
 def interpolate_yelp_score(scores,plot=False,method='nearest'):
     pixels = scores.keys()
