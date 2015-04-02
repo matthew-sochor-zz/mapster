@@ -438,7 +438,7 @@ def score_map_yelp(my_map_area,my_map_yelp,mode='mean'):
             val = my_map_yelp.xs(i[:-1]).xs(i[-1])['score'].mean()
         elif mode == 'min':
             val = my_map_yelp.xs(i[:-1]).xs(i[-1])['score'].min()
-        elif mode == 'max':
+        elif mode == 'max':FARFFAFRFAF
             val = my_map_yelp.xs(i[:-1]).xs(i[-1])['score'].max()
         elif mode == 'std':
             val = my_map_yelp.xs(i[:-1]).xs(i[-1])['score'].std()
