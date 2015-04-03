@@ -9,6 +9,7 @@ import time
 import requests
 import threading
 import Queue
+import Image as pil
 
 # Keystone DI proj
 google_api_key = ['AIzaSyDyodEhr_tYYr1SeBFQVWNDqJSpPqDK7HM']
@@ -366,9 +367,7 @@ def map_yelp_travel_time(map_yelp_DF,group=None):
     if not group:
         group = 100
         
-    #df = map_yelp_DF.reset_index()
     df = map_yelp_DF.copy()
-    #dfout = df.copy()
     df['ind'] = df.index
     searching =True
     key = 0  
@@ -438,7 +437,7 @@ def score_map_yelp(my_map_area,my_map_yelp,mode='mean'):
             val = my_map_yelp.xs(i[:-1]).xs(i[-1])['score'].mean()
         elif mode == 'min':
             val = my_map_yelp.xs(i[:-1]).xs(i[-1])['score'].min()
-        elif mode == 'max':FARFFAFRFAF
+        elif mode == 'max':
             val = my_map_yelp.xs(i[:-1]).xs(i[-1])['score'].max()
         elif mode == 'std':
             val = my_map_yelp.xs(i[:-1]).xs(i[-1])['score'].std()
@@ -505,61 +504,66 @@ def get_travel_time(orig_lat,orig_lng,dest_lat,dest_lng,mode='walking',key=None)
         seconds = np.NaN
         
     return seconds
+    
+def draw_mapster(map_area,searches,mode='linear',alpha=128):
+    if isinstance(searches,str):
+        searches = [searches]
+    map_area = map_area.sort(['px','py'])
+    px = map_area['px']
+    py = map_area['py']
+    tx = list(set(map_area['tx']))
+    ty = list(set(map_area['ty']))
+    
+    x_fine,y_fine = np.mgrid[np.min(px):np.max(px):1,np.min(py):np.max(py):1]
 
-def interpolate_yelp_score(scores,plot=False,method='nearest'):
-    pixels = scores.keys()
-    searches = scores.index
-    px = []
-    py = []
-    for pixel in pixels:
-        pix = pixel.split(':')
-        px.append(float(pix[0]))
-        py.append(float(pix[1]))
-    xsteps_fine = 1
-    ysteps_fine = 1
-    x_fine,y_fine = np.mgrid[np.min(px):np.max(px):xsteps_fine,np.min(py):np.max(py):ysteps_fine]
-    interp = {}
-    for search in searches: 
-        points = [[]]
-        mask_points = [[]]
-        values = []
-        mask_values = []
-        mask_flag=True
-        for i,x in enumerate(px):
-            if mask_flag:
-                mask_points = [[x,py[i]]]
-            else:
-                mask_points.append([x,py[i]])
-            if not np.isnan(scores[pixels[i]][search]):
-                if mask_flag:
-                    mask_values=[128]
-                    mask_flag = False
-                else:
-                    mask_values.append(128)
-                    
-                if len(points[0]) == 0:
-                    points = [[x,py[i]]]
-                    values = [scores[pixels[i]][search]]
-                else:
-                    points.append([x,py[i]])
-                    values.append(scores[pixels[i]][search])
-            else:
-                if mask_flag:
-                    mask_values=[0]
-                    mask_flag = False
-                else:
-                    mask_values.append(0)
-                
-        grid = griddata(np.matrix(points), np.array(values), (x_fine, y_fine), method)
-        grid_mask = griddata(np.matrix(mask_points), np.array(mask_values), (x_fine, y_fine), method)
-        interp[search] = grid.T
-        if plot:
-            plt.figure()
-            plt.imshow(grid)
-            plt.title(search)
-            plt.figure()
-            plt.imshow(grid_mask)
-            plt.title(search+' mask')
-            
-    return x_fine,y_fine,interp
-     
+    points = np.matrix([[x,y] for x,y in zip(px,py)])
+    first = True
+    
+    for search in searches:
+        if first:
+            values = np.array(map_area[search])
+            first = False
+            im_name = search
+        else:
+            values += np.array(map_area[search])
+            im_name += '_'+search
+    
+    values = values/len(searches)
+    grid = griddata(points,values,(x_fine,y_fine),mode)
+    
+    gmax = max([max(g) for g in grid])
+    gnorm = grid.T/gmax
+
+    im = pil.fromarray(np.uint8(plt.cm.jet(gnorm)*255))
+    
+    mintile = get_tile_pixels(min(tx),min(ty))
+    maxtile = get_tile_pixels(max(tx),max(ty))
+
+    x_off,y_off = int(min(px) - mintile[0]),int(min(py)-mintile[1])
+    bigmap = np.zeros((maxtile[3]-mintile[1],maxtile[2]-mintile[0]))
+    
+    bigmap[y_off:y_off+len(gnorm),x_off:x_off+len(gnorm[0])] = gnorm
+    im = pil.fromarray(np.uint8(plt.cm.jet(bigmap)*255))
+    alpha_layer = np.zeros((maxtile[3]-mintile[1],maxtile[2]-mintile[0]))
+    alpha_layer[bigmap > 0] = alpha
+    alpha_im = pil.fromarray(alpha_layer)
+    alpha_im = alpha_im.convert('L')
+    r,g,b,a = im.split()
+
+    final_im = pil.merge('RGBA',(r,g,b,alpha_im))
+    make_tiles(tx,ty,final_im,im_name)
+    
+def get_tile_pixels(tx,ty):
+    return (tx*256,ty*256,tx*256+256,ty*256+256)
+
+def make_tiles(tilex,tiley,im,name):
+    xoff = min(tilex)*256
+    yoff = min(tiley)*256
+    #im = im.transpose(pil.ROTATE_90)
+    for tx in tilex:
+        for ty in tiley:
+            pixels = get_tile_pixels(tx,ty)
+            box = (pixels[0]-xoff,pixels[1]-yoff,pixels[2]-xoff,pixels[3]-yoff)
+            region = im.crop(box)
+            fname = './tiles/'+name+'_'+str(tx)+'_'+str(ty)+'.png'
+            region.save(fname)

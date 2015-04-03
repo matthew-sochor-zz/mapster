@@ -1,0 +1,118 @@
+
+
+<!DOCTYPE html>
+<html>
+  <head>
+    <title>Overlaying an image map type</title>
+    <meta name="viewport" content="initial-scale=1.0, user-scalable=no">
+    <meta charset="utf-8">
+    <style>
+      html, body, #map-canvas {
+        height: 100%;
+        margin: 0px;
+        padding: 0px
+      }
+            #nav {
+    position: absolute;
+    left: 0px;
+    top: 0px;
+    z-index: 1;
+    width: 20%;
+    background: whitesmoke; 
+    text-align: center;
+      }
+    </style>
+
+    <script src="https://maps.googleapis.com/maps/api/js?v=3.exp&signed_in=true"></script>
+
+    <script>
+ 
+    
+var watertown = new google.maps.LatLng(42.354168,	-71.183853);
+var jp = new google.maps.LatLng(42.301817,-71.128063);
+var somerville = new google.maps.LatLng(42.381903, -71.113967);
+var map;
+function updateMap(sel) {
+
+  var searchTerm = sel.value;
+  var mapOptions = {
+    zoom: 14,
+    maxZoom:14,
+    minZoom: 14,
+    center: mapCenter
+  };
+  map = new google.maps.Map(document.getElementById('map-canvas'),
+      mapOptions);
+
+  var imageMapType = new google.maps.ImageMapType({
+    getTileUrl: function(coord, zoom) {
+      if (zoom == 14) {
+        return ['http://www.sochor.co/tiles/',searchTerm,'_', coord.x, '_', coord.y, '.png'].join('');
+      } else {
+		  return null;      
+      }
+    },
+    tileSize: new google.maps.Size(256, 256)
+  });
+
+  map.overlayMapTypes.push(imageMapType);
+  
+  }
+var mapCenter;
+function initialize() {
+
+  var searchTerm = 'burger';
+  var mapOptions = {
+    zoom: 14,
+    maxZoom:14,
+    minZoom: 14,
+    center: watertown
+  };
+  map = new google.maps.Map(document.getElementById('map-canvas'),
+      mapOptions);
+
+  var imageMapType = new google.maps.ImageMapType({
+    getTileUrl: function(coord, zoom) {
+      if (zoom == 14) {
+        return ['http://www.sochor.co/tiles/',searchTerm,'_', coord.x, '_', coord.y, '.png'].join('');
+      } else {
+		  return null;      
+      }
+    },
+    tileSize: new google.maps.Size(256, 256)
+  });
+  google.maps.event.addListener(map, 'center_changed', function() {
+    // 3 seconds after the center of the map has changed, pan back to the
+    // marker.
+    mapCenter = map.getCenter()
+  });
+
+  map.overlayMapTypes.push(imageMapType);
+
+}
+
+google.maps.event.addDomListener(window, 'load', initialize);
+
+    </script>
+  </head>
+  <body>
+    <div id="map-canvas"></div>
+    	<div id="nav">Mapster!<br><br>So, where do you <i>want</i> to live?<br><br>
+	Choose an option below to see how good a neighborhood is for that.<br><br> Blue == good :D <br> Red == bad :'( <br><br>
+	 <select autofocus="True" id="search" onchange="updateMap(this)">
+	 
+  <option value="">Select search</option>
+  <option value="burger">Burger</option>
+  <option value="coffee">Coffee</option>
+  <option value="chinese">Chinese</option>
+  <option value="diner">Diner</option>
+  <option value="indian">Indian</option>
+  <option value="mexican">Mexican</option>
+  <option value="pizza">Pizza</option>
+  <option value="thai">Thai</option>
+</select> 
+<div id='changey'><div>
+	</div>
+  </body>
+</html>
+

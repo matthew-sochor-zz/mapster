@@ -1,0 +1,79 @@
+
+
+<!DOCTYPE html>
+<html>
+  <head>
+    <title>Overlaying an image map type</title>
+    <meta name="viewport" content="initial-scale=1.0, user-scalable=no">
+    <meta charset="utf-8">
+    <style>
+    body {
+        height: 100%;
+        margin: 0px;
+        padding: 0px;
+        background: orange;
+    
+    }
+     #map-canvas {
+        position: absolute;
+        width:100%;
+        height: 100%;
+        margin: 0px;
+        padding: 0px;
+        z-index:-1;
+        background:red;
+      }
+      #holder{
+		height:100%;
+       width:100%;
+		margin:0px;
+		padding:0px;  
+		background:green;    
+      }
+      #mapframe{
+        width:100%;
+        height: 100%;
+        margin: 0px;
+        padding: 0px;
+        background:yellow;
+      }
+      #nav {
+    position: absolute;
+    left: 0px;
+    top: 0px;
+    z-index: 1;
+    width: 20%;
+    background: whitesmoke; 
+    text-align: center;
+      }
+    </style>
+    <script src="https://maps.googleapis.com/maps/api/js?v=3.exp&signed_in=true"></script>
+    <script>
+    function mapChangey(searchTerm) {
+    document.getElementById('mapFrame').src =  ['http://www.sochor.co/mapstermap.html?search=',searchTerm].join('');
+    document.getElementById('mapFrame').contentDocument.location.reload(true);
+    	
+    }
+        </script>
+  </head>
+  <body>
+    <div id="holder">	
+    <div id="map-canvas"><iframe id="mapframe" src="http://www.sochor.co/mapstermap.html?search=burger"></iframe></div>
+	
+	<div id="nav">Mapster!<br><br>So, where do you <i>want</i> to live?<br><br>
+	Choose an option below to see how good a neighborhood is for that.<br><br> Blue == good :D <br> Red == bad :'( <br><br>
+	 <select autofocus="True" onchange="mapChangey(this.options[this.selectedIndex].value;)">
+  <option value="burger">Burger</option>
+  <option value="coffee">Coffee</option>
+  <option value="chinese">Chinese</option>
+  <option value="Diner">Diner</option>
+  <option value="indian">Indian</option>
+  <option value="mexican">Mexican</option>
+  <option value="pizza">Pizza</option>
+  <option value="thai">Thai</option>
+</select> 
+	</div>
+    
+    </div>
+  </body>
+</html>
