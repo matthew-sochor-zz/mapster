@@ -276,7 +276,9 @@ def map_area(minlatlng,maxlatlng,old_map=None):
                     map_py.append(py)
                     map_lat.append(lat)
                     map_lng.append(lng)
-    tx,ty = pixelstotile(map_px,map_py)        
+
+    tile = [(pixelstotile(px,py)) for px,py in zip(map_px,map_py)] 
+    tx,ty = zip(*tile)
     df = pd.DataFrame({'address':map_address,
                          'px': map_px,
                          'py': map_py,
@@ -322,14 +324,14 @@ def map_yelp(my_map_area,searches,old_map_area=None):
             scrape['px'] = px
             scrape['py'] = py
             if first:
-                #yelp_df = scrape.set_index(['px','py','search'])
+                yelp_df = scrape
                 first = False
             else:
                 #yelp_df = pd.concat([yelp_df, scrape.set_index(['px','py','search'])])
                 yelp_df = pd.concat([yelp_df, scrape])
                 #yelp = yelp_searches(px,py,search)
     businessDF.to_pickle('./pickles/businessDF.pkl')
-    
+    yelp_df = yelp_df.reset_index()
     return map_yelp_travel_time(yelp_df)
 
 def run_parallel_in_threads(target, args_list):
@@ -373,6 +375,8 @@ def map_yelp_travel_time(map_yelp_DF,group=None):
     key = 0  
     results = []
     busses = [df.loc[i] for i in df.index]
+    #busses = [df[key] for key in df.keys]
+    #return busses
     ind =0
     while searching:
         if test_key(key):
@@ -416,17 +420,22 @@ def map_yelp_travel_time(map_yelp_DF,group=None):
                 searching = False
     # note there is probably a much more elegant way of doing this  
     
-    resultsDF = pd.DataFrame(results)
+    resultsDF = pd.DataFrame(results,columns=['ind','seconds','score'])
     # need to sort because the parallel threading screws up the order
     resultsDF = resultsDF.sort(resultsDF.keys()[0])
+    print resultsDF
     #resultsDF = resultsDF.set_index(resultsDF.keys()[0])
     # dfout doesn't have the 'ind' field,  I think there is a more elegant way to drop a single column
     #dfout['seconds'] = resultsDF[resultsDF.keys()[0]]
     #dfout['score'] = resultsDF[resultsDF.keys()[1]]
-    df['seconds'] = resultsDF[resultsDF.keys()[0]]
-    df['score'] = resultsDF[resultsDF.keys()[1]]
+    df['seconds'] = resultsDF['seconds']
+    df['score'] = resultsDF['score']
     #return dfout.set_index(['px','py','search'])   
-    return df.drop('ind')
+    # clean up our DataFrame a bit
+    del df['ind']
+    df['id'] = df['index']
+    del df['index']
+    return df #.drop('ind')
 
 def test_key(key):
     return get_travel_time(42.381119, -71.115189, 42.383610, -71.133680,key=key)
@@ -446,7 +455,7 @@ def score_map_yelp(my_map_area,my_map_yelp,mode='mean'):
         my_map_area.loc[i[:-1],i[-1]] = val
         my_map_area.loc[i[:-1],i[-1]+'-source'] = 'yelp-'+mode
 '''
-def score_map_yelp(my_map_area,my_map_yelp,mode='mean'):
+def score_map_yelp(my_map_area,my_map_yelp,mode='min'):
     
     if mode == 'mean':
         val = my_map_yelp.groupby(['px','py','search'])['score'].mean()
@@ -460,9 +469,14 @@ def score_map_yelp(my_map_area,my_map_yelp,mode='mean'):
         raise NameError
     #my_map_area.sort(['px','py'])
     #val.sort(['px','py'])
+    
+    val = val.reset_index()
+    my_map_area.sort(['px','py'])
+    val.sort(['px','py'])
+    #return val
     searches = list(set(val['search']))
     for search in searches:
-        my_map_area[search] = val[val['search']==search]
+        my_map_area[search] = list(val[val['search']==search]['score'])
 
 def merge_map_yelp(map_yelp_1,map_yelp_2):
     # map yelps should have the same indices.  This really only occurs when doing further searches.
@@ -499,13 +513,14 @@ def get_travel_time(orig_lat,orig_lng,dest_lat,dest_lng,mode='walking',key=None)
     
     try:
         seconds = result.get('rows')[0].get('elements')[0].get('duration').get('value')
+        #print seconds
     except IndexError:
         print 'Index Error for: '+str(orig_lat)+' - '+str(orig_lng)+ ' to '+str(dest_lat)+' - '+str(dest_lng)
         seconds = np.NaN
         
     return seconds
     
-def draw_mapster(map_area,searches,mode='linear',alpha=128):
+def draw_mapster(map_area,searches,mode='linear',alpha=128,plot=False):
     if isinstance(searches,str):
         searches = [searches]
     map_area = map_area.sort(['px','py'])
@@ -530,6 +545,8 @@ def draw_mapster(map_area,searches,mode='linear',alpha=128):
     
     values = values/len(searches)
     grid = griddata(points,values,(x_fine,y_fine),mode)
+    if plot:
+        plt.imshow(grid)
     
     gmax = max([max(g) for g in grid])
     gnorm = grid.T/gmax
@@ -552,6 +569,8 @@ def draw_mapster(map_area,searches,mode='linear',alpha=128):
 
     final_im = pil.merge('RGBA',(r,g,b,alpha_im))
     make_tiles(tx,ty,final_im,im_name)
+    #return grid
+
     
 def get_tile_pixels(tx,ty):
     return (tx*256,ty*256,tx*256+256,ty*256+256)
