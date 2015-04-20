@@ -11,6 +11,8 @@ import threading
 import Queue
 import Image as pil
 
+from multiprocessing import Pool
+
 # Keystone DI proj
 google_api_key = ['AIzaSyDyodEhr_tYYr1SeBFQVWNDqJSpPqDK7HM']
 # Keystone DI overflow
@@ -227,7 +229,7 @@ def address_from_lat_lng(lat_lng,tolerance=0.25):
         if (geocode_x_err < tolerance) and (geocode_y_err < tolerance):
             return geocode.get('results')[0].get('formatted_address')            
         else:
-            print 'Error: Geocoded address > ' + str(tolerance*100) + '% away from starting lat/lng'
+            #print 'Error: Geocoded address > ' + str(tolerance*100) + '% away from starting lat/lng'
             #return 'ERROR'
             return None
     else:
@@ -294,8 +296,24 @@ def map_area(minlatlng,maxlatlng,old_map=None):
     else:
         #return df_indexed
         return df
+
+def map_yelp_unique(outer_map_area,inner_map_area):
+    imap = inner_map_area.set_index(['px','py'])
+    between_map_area = outer_map_area.copy()
+    for i in outer_map_area.index:
+        try:
+            imap.ix[outer_map_area.loc[i]['px'],outer_map_area.loc[i]['py']]
+            #print 'point is in the map: ',outer_map_area.loc[i]['px'],outer_map_area.loc[i]['py']
+            between_map_area = between_map_area.drop(i)
+        except:
+            do = 'nothing'
+
+            #print 'point is NOT in the map: ',outer_map_area.loc[i]['px'],outer_map_area.loc[i]['py']
+    return between_map_area
                          
 def map_yelp(my_map_area,searches,old_map_area=None):
+    if isinstance(searches,str):
+        searches = [searches]
     try:
         businessDF = pd.read_pickle('./pickles/businessDF.pkl')
         firstRun = False
@@ -354,7 +372,8 @@ def travel_time_wrapper(bus,key):
             if seconds:
                 score = seconds/(bus['rating']**2) 
             else:
-                return None
+                seconds = np.NaN
+                score = np.NaN
         else:
             seconds = np.NaN
             score = np.NaN
@@ -407,6 +426,7 @@ def map_yelp_travel_time(map_yelp_DF,group=None):
                 ind += group
                 results += result
             else:
+                print 'Exhausted distance matrix key: '+str(key)
                 key += 1
                 if key == 5:
                     print 'No keys left'
@@ -423,7 +443,7 @@ def map_yelp_travel_time(map_yelp_DF,group=None):
     resultsDF = pd.DataFrame(results,columns=['ind','seconds','score'])
     # need to sort because the parallel threading screws up the order
     resultsDF = resultsDF.sort(resultsDF.keys()[0])
-    print resultsDF
+    #print resultsDF
     #resultsDF = resultsDF.set_index(resultsDF.keys()[0])
     # dfout doesn't have the 'ind' field,  I think there is a more elegant way to drop a single column
     #dfout['seconds'] = resultsDF[resultsDF.keys()[0]]
@@ -436,6 +456,80 @@ def map_yelp_travel_time(map_yelp_DF,group=None):
     df['id'] = df['index']
     del df['index']
     return df #.drop('ind')
+
+#start_time = time.time()
+#tech_details = workers.map(get_tech_details, tech_links)
+def travel_time_wrapper2(bus,key=0):
+
+    if not bus['error']:
+        if not bus['oauth2-ascii-error']:
+            seconds = get_travel_time(bus['lat'],bus['lng'],bus['business lat'],bus['business lng'],key=key)  
+            if seconds:
+                score = seconds/(bus['rating']**2) 
+            else:
+                #return None
+                seconds = np.NaN
+                score = np.NaN
+        else:
+            seconds = np.NaN
+            score = np.NaN
+    else:
+        seconds = np.NaN
+        score = np.NaN
+        
+    return (bus['ind'],seconds,score)
+from functools import partial
+
+ 
+    
+def map_yelp_travel_time_keyed(map_yelp_DF,group=None,key=None):
+    if not group:
+        group = 100
+    if not key:
+        keyflag = True
+        key = 0
+        while keyflag:
+            if test_key(key):
+                keyflag = False
+            else:
+                key = key+1
+                if key ==5:
+                    print 'Out of keys today, try again tomorrow'
+                    return None
+                 
+    df = map_yelp_DF.copy()
+    df['ind'] = df.index
+    
+    results = []
+    busses = [df.loc[i] for i in df.index]
+    #busses = [df[key] for key in df.keys]
+    #return busses
+    
+    workers = Pool(group)  # 30 worker processes
+    travel_time_wrapper2_keyed = partial(travel_time_wrapper2, key=key)
+    results = workers.map(travel_time_wrapper2_keyed, busses) 
+    workers.close()
+    workers.join()
+    #return results
+    # note there is probably a much more elegant way of doing this  
+    try:
+        resultsDF = pd.DataFrame(results,columns=['ind','seconds','score'])
+    except:
+        print 'PANDAS ERROR!'
+        return results
+    #print resultsDF
+    # need to sort because the parallel threading screws up the order
+    resultsDF = resultsDF.sort(resultsDF.keys()[0])
+
+    df['seconds'] = resultsDF['seconds']
+    df['score'] = resultsDF['score']
+    #return dfout.set_index(['px','py','search'])   
+    # clean up our DataFrame a bit
+    del df['ind']
+    df['id'] = df['index']
+    del df['index']
+    return df #.drop('ind')
+
 
 def test_key(key):
     return get_travel_time(42.381119, -71.115189, 42.383610, -71.133680,key=key)
@@ -508,7 +602,7 @@ def get_travel_time(orig_lat,orig_lng,dest_lat,dest_lng,mode='walking',key=None)
             
             
     if result.get('status') == 'OVER_QUERY_LIMIT':
-        print 'Exhausted distance matrix key: '+str(key)
+        #print 'Exhausted distance matrix key: '+str(key)
         return None
     
     try:

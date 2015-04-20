@@ -54,6 +54,11 @@ function updateMap(sel) {
     },
     tileSize: new google.maps.Size(256, 256)
   });
+  google.maps.event.addListener(map, 'center_changed', function() {
+    // 3 seconds after the center of the map has changed, pan back to the
+    // marker.
+    mapCenter = map.getCenter()
+  });
 
   map.overlayMapTypes.push(imageMapType);
   
