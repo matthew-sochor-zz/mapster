@@ -533,22 +533,8 @@ def map_yelp_travel_time_keyed(map_yelp_DF,group=None,key=None):
 
 def test_key(key):
     return get_travel_time(42.381119, -71.115189, 42.383610, -71.133680,key=key)
-'''
-def score_map_yelp(my_map_area,my_map_yelp,mode='mean'):
-    for i in my_map_yelp.index:
-        if mode == 'mean':
-            val = my_map_yelp.xs(i[:-1]).xs(i[-1])['score'].mean()
-        elif mode == 'min':
-            val = my_map_yelp.xs(i[:-1]).xs(i[-1])['score'].min()
-        elif mode == 'max':
-            val = my_map_yelp.xs(i[:-1]).xs(i[-1])['score'].max()
-        elif mode == 'std':
-            val = my_map_yelp.xs(i[:-1]).xs(i[-1])['score'].std()
-        else:
-            raise NameError
-        my_map_area.loc[i[:-1],i[-1]] = val
-        my_map_area.loc[i[:-1],i[-1]+'-source'] = 'yelp-'+mode
-'''
+
+
 def score_map_yelp(my_map_area,my_map_yelp,mode='min'):
     
     if mode == 'mean':
@@ -561,8 +547,6 @@ def score_map_yelp(my_map_area,my_map_yelp,mode='min'):
         val = my_map_yelp.groupby(['px','py','search'])['score'].std()
     else:
         raise NameError
-    #my_map_area.sort(['px','py'])
-    #val.sort(['px','py'])
     
     val = val.reset_index()
     my_map_area.sort(['px','py'])
@@ -573,14 +557,13 @@ def score_map_yelp(my_map_area,my_map_yelp,mode='min'):
         my_map_area[search] = list(val[val['search']==search]['score'])
 
 def merge_map_yelp(map_yelp_1,map_yelp_2):
-    # map yelps should have the same indices.  This really only occurs when doing further searches.
-    #df1 = map_yelp_1.reset_index()
-    #df2 = map_yelp_2.reset_index()
-    #df3 = pd.concat([df1,df2])
-    #df4 = df3.sort(['px','py','search'])
-    #return df4.set_index(['px','py','search'])
+    
     df = pd.concat([map_yelp_1,map_yelp_2])
     return df.sort(['px','py','search'])
+
+def merge_map_area(map_area_1,map_area_2):
+    df = pd.concat([map_area_1,map_area_2])
+    return df.sort(['px','py'])
 
 def get_travel_time(orig_lat,orig_lng,dest_lat,dest_lng,mode='walking',key=None):
     if not key:
